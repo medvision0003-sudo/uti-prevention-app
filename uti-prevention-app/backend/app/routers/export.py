@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.dependencies import get_current_user
-from app.models import BladderLog, DailyCheckIn, PatientIdentity, User, WaterLog
+from app.models import BladderLog, ClinicIntake, DailyCheckIn, PatientIdentity, User, WaterLog
 
 
 router = APIRouter(prefix="/api/export", tags=["Patient Data Export"])
@@ -73,6 +73,7 @@ def export_patient_excel(
         .where(DailyCheckIn.user_id == user.id)
         .order_by(DailyCheckIn.check_in_date)
     ).all()
+    intake = db.scalar(select(ClinicIntake).where(ClinicIntake.user_id == user.id))
 
     workbook = Workbook()
     patient_sheet = workbook.active
@@ -87,6 +88,29 @@ def export_patient_excel(
     ]:
         patient_sheet.append([label, excel_text(value)])
     format_sheet(patient_sheet)
+
+    intake_sheet = workbook.create_sheet("Clinic Intake")
+    prepare_sheet(intake_sheet, ["Field", "Value"])
+    if intake is not None:
+        for label, value in [
+            ("Age", intake.age),
+            ("Last menstrual period", intake.last_menstrual_period.isoformat() if intake.last_menstrual_period else ""),
+            ("Postmenopausal", intake.postmenopausal),
+            ("History of hysterectomy", intake.hysterectomy),
+            ("Approximate menopause duration", intake.menopause_duration or ""),
+            ("Recurrent UTI", intake.recurrent_uti),
+            ("Diabetes", intake.diabetes),
+            ("Constipation", intake.constipation),
+            ("History of loose motions", intake.loose_motions),
+            ("Recent travel", intake.recent_travel),
+            ("Other urological history", intake.other_urological_history),
+            ("Prior intervention or procedure", intake.prior_intervention),
+            ("Prior stone surgery", intake.prior_stone_surgery),
+            ("Note", excel_text(intake.note or "")),
+            ("Last updated (UTC)", intake.updated_at.isoformat()),
+        ]:
+            intake_sheet.append([label, value])
+    format_sheet(intake_sheet)
 
     water_sheet = workbook.create_sheet("Water Log")
     prepare_sheet(water_sheet, ["Date", "Time (India)", "Amount (ml)"])

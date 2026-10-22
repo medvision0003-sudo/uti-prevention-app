@@ -12,8 +12,35 @@ const SYMPTOM_OPTIONS = [
   ['back_or_flank_pain', 'Back or side pain'],
   ['nausea_or_vomiting', 'Nausea or vomiting']
 ]
+const INTAKE_HISTORY_OPTIONS = [
+  ['recurrent_uti', 'Recurrent urinary tract infection (UTI)'],
+  ['diabetes', 'Diabetes'],
+  ['constipation', 'Constipation'],
+  ['loose_motions', 'History of loose motions'],
+  ['recent_travel', 'Recent travel'],
+  ['other_urological_history', 'Other urological history'],
+  ['prior_intervention', 'Prior intervention or procedure'],
+  ['prior_stone_surgery', 'Prior stone surgery']
+]
+const EMPTY_INTAKE = {
+  age: '',
+  last_menstrual_period: '',
+  postmenopausal: null,
+  hysterectomy: null,
+  menopause_duration: null,
+  recurrent_uti: null,
+  diabetes: null,
+  constipation: null,
+  loose_motions: null,
+  recent_travel: null,
+  other_urological_history: null,
+  prior_intervention: null,
+  prior_stone_surgery: null,
+  note: ''
+}
 const PAGE_HASHES = {
   home: '#/',
+  intake: '#/clinic-intake',
   water: '#/water-log',
   bladder: '#/bladder-log',
   checkin: '#/daily-check-in'
@@ -28,6 +55,14 @@ function getSavedHydrationGoal() {
   return Number.isInteger(savedGoal) && savedGoal >= 250 && savedGoal <= 10000
     ? savedGoal
     : DEFAULT_HYDRATION_GOAL
+}
+
+function getLocalDateString() {
+  const date = new Date()
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function getAPIErrorMessage(detail, fallback) {
@@ -96,13 +131,14 @@ export default function App() {
   const [bladderSummary, setBladderSummary] = useState(null)
   const [checkIn, setCheckIn] = useState(null)
   const [checkInHistory, setCheckInHistory] = useState([])
-  const [bowelStatus, setBowelStatus] = useState('normal')
   const [symptoms, setSymptoms] = useState([])
   const [savingBladder, setSavingBladder] = useState(false)
   const [savingCheckIn, setSavingCheckIn] = useState(false)
   const [savingProfile, setSavingProfile] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [pageMessage, setPageMessage] = useState('')
+  const [intake, setIntake] = useState(EMPTY_INTAKE)
+  const [savingIntake, setSavingIntake] = useState(false)
   const profileComplete = Boolean(user?.full_name?.trim() && user?.contact_number?.trim())
 
   useEffect(() => {
@@ -163,6 +199,27 @@ export default function App() {
   }, [token, page])
 
   useEffect(() => {
+    if (!token || page !== 'intake') return undefined
+    let cancelled = false
+    fetch(`${API}/api/intake`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(async response => {
+        const data = await response.json()
+        if (!response.ok) throw new Error(getAPIErrorMessage(data.detail, 'Unable to load clinic intake'))
+        if (!cancelled) {
+          setIntake(data.completed
+            ? { ...EMPTY_INTAKE, ...data, age: String(data.age), last_menstrual_period: data.last_menstrual_period || '', note: data.note || '' }
+            : EMPTY_INTAKE)
+        }
+      })
+      .catch(error => {
+        if (!cancelled) setPageMessage(getRequestErrorMessage(error))
+      })
+    return () => { cancelled = true }
+  }, [token, page])
+
+  useEffect(() => {
     if (!token || page !== 'checkin') return undefined
     let cancelled = false
     Promise.all([
@@ -185,7 +242,6 @@ export default function App() {
         if (cancelled) return
         setCheckIn(today)
         setCheckInHistory(history.entries)
-        if (today.bowel_status) setBowelStatus(today.bowel_status)
         setSymptoms(today.symptoms)
       })
       .catch(error => {
@@ -343,7 +399,7 @@ export default function App() {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ bowel_status: bowelStatus, symptoms })
+        body: JSON.stringify({ symptoms })
       })
       const saved = await response.json()
       if (!response.ok) throw new Error(getAPIErrorMessage(saved.detail, 'Unable to save daily check-in'))
@@ -398,6 +454,37 @@ export default function App() {
     const amount = Number(waterAmount)
     if (Number.isInteger(amount) && amount > 0 && amount <= 5000) {
       addWater(amount)
+    }
+  }
+
+  async function saveIntake(event) {
+    event.preventDefault()
+    setPageMessage('')
+    setSavingIntake(true)
+    try {
+      const { age, last_menstrual_period, note, ...history } = intake
+      const response = await fetch(`${API}/api/intake`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...history,
+          age: Number(age),
+          last_menstrual_period: last_menstrual_period || null,
+          note: note.trim() || null,
+          menopause_duration: intake.postmenopausal ? intake.menopause_duration : null
+        })
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(getAPIErrorMessage(data.detail, 'Unable to save clinic intake'))
+      setIntake({ ...EMPTY_INTAKE, ...data, age: String(data.age), last_menstrual_period: data.last_menstrual_period || '', note: data.note || '' })
+      setPageMessage('Clinic intake saved.')
+    } catch (error) {
+      setPageMessage(getRequestErrorMessage(error))
+    } finally {
+      setSavingIntake(false)
     }
   }
 
@@ -463,8 +550,8 @@ export default function App() {
         <section className="dashboard">
           <div className="welcome-row">
             <div>
-              <div className="eyebrow">{page === 'home' ? 'YOUR SPACE' : 'DAILY TRACKING'}</div>
-              <h2>{page === 'water' ? 'Water intake' : page === 'bladder' ? 'Bladder log' : page === 'checkin' ? 'Daily check-in' : 'Welcome'}</h2>
+              <div className="eyebrow">{page === 'home' ? 'YOUR SPACE' : page === 'intake' ? 'CLINIC-ASSISTED INTAKE' : 'DAILY TRACKING'}</div>
+              <h2>{page === 'intake' ? 'Patient intake' : page === 'water' ? 'Water intake' : page === 'bladder' ? 'Bladder log' : page === 'checkin' ? 'Daily check-in' : 'Welcome'}</h2>
               <p className="muted">{page === 'home' ? user.email : 'Your entries are private to your account.'}</p>
             </div>
             <div className="welcome-actions">
@@ -496,19 +583,137 @@ export default function App() {
               </div>
             </div>
             <div className="grid tracking-grid">
+              <button className="feature-card tracking-link" onClick={() => navigate('intake')}>
+                <span className="step-number">CLINIC INTAKE</span><span className="feature-icon">☑</span><h3>Patient history</h3><p>Complete the intake together with clinic staff.</p><span className="coming">Open patient intake →</span>
+              </button>
               <button className="feature-card tracking-link" onClick={() => navigate('water')}>
-                <span className="step-number">STEP 1</span><span className="feature-icon">💧</span><h3>Water intake</h3><p>Record drinks and review your daily total.</p><span className="coming">Open water log →</span>
+                <span className="step-number">ONGOING LOG</span><span className="feature-icon">💧</span><h3>Water intake</h3><p>Record drinks and review your daily total.</p><span className="coming">Open water log →</span>
               </button>
               <button className="feature-card tracking-link" onClick={() => navigate('bladder')}>
-                <span className="step-number">STEP 2</span><span className="feature-icon">◷</span><h3>Bladder log</h3><p>Keep a simple record of urination times.</p><span className="coming">Open bladder log →</span>
+                <span className="step-number">OPTIONAL TRACKING</span><span className="feature-icon">◷</span><h3>Bladder log</h3><p>Keep a simple record of urination times.</p><span className="coming">Open bladder log →</span>
               </button>
               <button className="feature-card tracking-link" onClick={() => navigate('checkin')}>
-                <span className="step-number">STEP 3</span><span className="feature-icon">♡</span><h3>Daily check-in</h3><p>Record bowel health and symptoms.</p><span className="coming">Open daily check-in →</span>
+                <span className="step-number">ONGOING LOG</span><span className="feature-icon">♡</span><h3>Daily symptoms</h3><p>Record symptoms and review recent entries.</p><span className="coming">Open symptom log →</span>
               </button>
             </div>
             <button className="secondary" disabled={busy} onClick={checkSession}>Test protected API connection</button>
             {message && <p className="message" role="status">{message}</p>}
           </>}
+          {profileComplete && page === 'intake' && <section className="tracking-page" aria-labelledby="intake-heading">
+            <div className="tracking-page-heading">
+              <div><span className="feature-icon">☑</span><h3 id="intake-heading">Clinic-assisted patient intake</h3></div>
+              <span className="daily-count">{intake.updated_at ? 'Saved' : 'New intake'}</span>
+            </div>
+            <p className="muted">Clinic staff can complete this short history with the patient. Select yes or no for each history item.</p>
+            <form className="checkin-form intake-form" onSubmit={saveIntake}>
+              <fieldset>
+                <legend>Demographics</legend>
+                <label htmlFor="intake-age">Age</label>
+                <input
+                  id="intake-age"
+                  type="number"
+                  min="1"
+                  max="120"
+                  required
+                  value={intake.age}
+                  onChange={event => setIntake(current => ({ ...current, age: event.target.value }))}
+                  placeholder="Age in years"
+                />
+              </fieldset>
+              <fieldset>
+                <legend>Menstrual and menopausal history</legend>
+                <label htmlFor="last-menstrual-period">Date of last menstrual period (LMP)</label>
+                <input
+                  id="last-menstrual-period"
+                  type="date"
+                  max={getLocalDateString()}
+                  value={intake.last_menstrual_period}
+                  onChange={event => setIntake(current => ({ ...current, last_menstrual_period: event.target.value }))}
+                />
+                {[
+                  ['postmenopausal', 'Postmenopausal'],
+                  ['hysterectomy', 'History of hysterectomy']
+                ].map(([field, label]) => (
+                  <div className="intake-question" key={field}>
+                    <strong>{label}</strong>
+                    <div className="yes-no-options">
+                      {[['yes', true], ['no', false]].map(([answer, value]) => (
+                        <label className="choice-row" key={answer}>
+                          <input
+                            type="radio"
+                            name={`intake-${field}`}
+                            required
+                            checked={intake[field] === value}
+                            onChange={() => setIntake(current => ({
+                              ...current,
+                              [field]: value,
+                              ...(field === 'postmenopausal' && !value ? { menopause_duration: null } : {})
+                            }))}
+                          />
+                          {answer === 'yes' ? 'Yes' : 'No'}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {intake.postmenopausal && <div className="intake-band">
+                  <label htmlFor="menopause-duration">Approximate time since menopause</label>
+                  <select
+                    id="menopause-duration"
+                    required
+                    value={intake.menopause_duration || ''}
+                    onChange={event => setIntake(current => ({ ...current, menopause_duration: event.target.value || null }))}
+                  >
+                    <option value="">Select a time band</option>
+                    <option value="early">Perimenopausal / early (roughly first 5 years)</option>
+                    <option value="recent">Recent (roughly 5–7 years)</option>
+                    <option value="late">Late (roughly 7 years and beyond)</option>
+                  </select>
+                  <p className="hint">These are approximate draft bands. Confirm the clinical cut-offs with a clinician before using them for care decisions.</p>
+                </div>}
+              </fieldset>
+              <fieldset>
+                <legend>General medical and urological history</legend>
+                <div className="intake-history-grid">
+                  {INTAKE_HISTORY_OPTIONS.map(([field, label]) => (
+                    <div className="intake-question" key={field}>
+                      <strong>{label}</strong>
+                      <div className="yes-no-options">
+                        {[['yes', true], ['no', false]].map(([answer, value]) => (
+                          <label className="choice-row" key={answer}>
+                            <input
+                              type="radio"
+                              name={`intake-${field}`}
+                              required
+                              checked={intake[field] === value}
+                              onChange={() => setIntake(current => ({ ...current, [field]: value }))}
+                            />
+                            {answer === 'yes' ? 'Yes' : 'No'}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </fieldset>
+              <details className="intake-note">
+                <summary>Add an optional note</summary>
+                <label htmlFor="intake-note">Specific details (optional)</label>
+                <textarea
+                  id="intake-note"
+                  maxLength="2000"
+                  rows="4"
+                  value={intake.note}
+                  onChange={event => setIntake(current => ({ ...current, note: event.target.value }))}
+                  placeholder="Add details only when needed"
+                />
+              </details>
+              <button className="primary" disabled={savingIntake}>
+                {savingIntake ? 'Saving…' : intake.updated_at ? 'Update patient intake' : 'Save patient intake'}
+              </button>
+            </form>
+            {pageMessage && <p className="message" role="status">{pageMessage}</p>}
+          </section>}
           {profileComplete && page === 'water' && <section className="water-card" aria-labelledby="water-heading">
             <div className="water-heading">
               <div>
@@ -617,18 +822,8 @@ export default function App() {
               <div><span className="feature-icon">♡</span><h3 id="checkin-heading">How are you feeling today?</h3></div>
               <span className="daily-count">{checkIn?.date || 'Loading…'}</span>
             </div>
+            <p className="muted">Log symptoms only. Your general bowel and medical history belongs in the clinic intake.</p>
             <form className="checkin-form" onSubmit={saveCheckIn}>
-              <fieldset>
-                <legend>Bowel health</legend>
-                {[
-                  ['normal', 'Normal'],
-                  ['hard_stool', 'Hard stool'],
-                  ['no_stool', 'No stool today']
-                ].map(([value, label]) => <label className="choice-row" key={value}>
-                  <input type="radio" name="bowel-status" value={value} checked={bowelStatus === value} onChange={() => setBowelStatus(value)} />
-                  {label}
-                </label>)}
-              </fieldset>
               <fieldset>
                 <legend>Symptoms (select any that apply)</legend>
                 <div className="symptom-grid">
@@ -651,12 +846,12 @@ export default function App() {
             <div className="water-history">
               <strong>Recent check-ins</strong>
               {checkInHistory.length ? <ul>{checkInHistory.map(entry => <li key={entry.date}>
-                <span>{entry.date} · {entry.bowel_status === 'hard_stool' ? 'Hard stool' : entry.bowel_status === 'no_stool' ? 'No stool' : 'Normal'}</span>
+                <span>{entry.date}</span>
                 <span>{entry.symptoms.length ? `${entry.symptoms.length} symptom${entry.symptoms.length === 1 ? '' : 's'}` : 'No symptoms'}</span>
               </li>)}</ul> : <p className="muted">Your saved daily check-ins will appear here.</p>}
             </div>
           </section>}
-          {profileComplete && pageMessage && page !== 'checkin' && <p className="message" role="status">{pageMessage}</p>}
+          {profileComplete && pageMessage && page !== 'checkin' && page !== 'intake' && <p className="message" role="status">{pageMessage}</p>}
         </section>
       )}
       <footer>Educational support only · Not a substitute for medical care</footer>

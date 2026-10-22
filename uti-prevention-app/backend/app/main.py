@@ -7,7 +7,10 @@ from app.routers.auth import router as auth_router
 from app.routers.bladder import router as bladder_router
 from app.routers.check_in import router as check_in_router
 from app.routers.export import router as export_router
+from app.routers.intake import router as intake_router
 from app.routers.water import router as water_router
+from app import models
+from app.db import engine
 
 
 app = FastAPI(
@@ -18,6 +21,12 @@ app = FastAPI(
         "not a diagnostic system."
     ),
 )
+
+
+@app.on_event("startup")
+def create_database_tables():
+    models.Base.metadata.create_all(bind=engine)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,6 +45,7 @@ app.include_router(water_router)
 app.include_router(bladder_router)
 app.include_router(check_in_router)
 app.include_router(export_router)
+app.include_router(intake_router)
 
 
 @app.get("/health", tags=["health"])

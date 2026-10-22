@@ -2,8 +2,8 @@
 
 A local-development starter using React + Vite, FastAPI, SQLAlchemy, and PostgreSQL.
 Patients can register with their name and contact number, receive a unique patient ID,
-record water intake, bladder activity, and daily check-ins, and download their own records
-as an Excel workbook.
+complete a clinic-assisted medical history, record water intake, bladder activity, and
+daily symptoms, and download their own records as an Excel workbook.
 
 ## Requirements
 - Python 3.11+
@@ -96,18 +96,21 @@ belongs in Vercel's frontend environment; Vite embeds `VITE_` variables in brows
 ## 4. Test
 1. Create an account with your name, contact number, email, and password of at least 10 characters.
 2. Note the patient ID shown on the dashboard.
-3. Record your water log, bladder log, and daily check-in.
-4. Click **Export my Excel workbook** to download the patient and tracking data. The workbook
-   contains separate sheets for patient details, water logs, bladder logs, and daily check-ins.
-5. Click **Test protected API connection** to test JWT-protected `/api/auth/me`.
+3. Open **Patient history** and complete the clinic-assisted intake. Age is the first field,
+   history questions require a yes/no answer, and the note is optional.
+4. Record water intake and daily symptoms. The bladder log remains available as optional tracking.
+5. Click **Export my Excel workbook** to download patient, intake, and tracking data.
+6. Click **Test protected API connection** to test JWT-protected `/api/auth/me`.
 
 ## Initial database tables
 - `users`: account identity, password hash, role, active status, creation time.
-- `patient_profiles`: optional age, menopause status, medical-condition notes, and recurrent UTI history.
+- `patient_profiles`: optional legacy age, menopause status, medical-condition notes, and recurrent UTI history.
+- `clinic_intakes`: clinic-assisted age, menstrual/menopausal history, yes/no medical history, and optional note.
 - `patient_identities`: generated patient ID, name, and contact number.
 - `water_logs`, `bladder_logs`, and `daily_check_ins`: patient-owned tracking history.
 
-The Excel export is generated on demand and includes only the authenticated patient's records.
+The Excel export is generated on demand and includes only the authenticated patient's records,
+including a separate clinic-intake sheet when an intake has been saved.
 
 ## Important security and clinical notes
 This is a development starter, not a production-ready health system. The demo frontend holds its JWT in React memory only, so refreshing the page signs the user out. Exported workbooks contain personal and health information; store and share them securely. Before production, add a carefully designed session strategy (prefer secure, HttpOnly cookies where appropriate), rate limiting, password reset, email verification, audit logging, backup/restore testing, access controls, and security review.

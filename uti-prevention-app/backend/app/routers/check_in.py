@@ -49,7 +49,7 @@ SYMPTOM_LABELS = {
 
 
 class CheckInPayload(BaseModel):
-    bowel_status: Literal["normal", "hard_stool", "no_stool"]
+    bowel_status: Literal["normal", "hard_stool", "no_stool"] = "normal"
     symptoms: list[Literal[
         "burning_urination",
         "urgency",

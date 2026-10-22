@@ -51,6 +51,32 @@ class PatientProfile(Base):
     user: Mapped[User] = relationship(back_populates="profile")
 
 
+class ClinicIntake(Base):
+    __tablename__ = "clinic_intakes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    age: Mapped[int] = mapped_column(Integer, nullable=False)
+    last_menstrual_period: Mapped[date | None] = mapped_column(Date, nullable=True)
+    postmenopausal: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    hysterectomy: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    menopause_duration: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    recurrent_uti: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    diabetes: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    constipation: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    loose_motions: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    recent_travel: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    other_urological_history: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    prior_intervention: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    prior_stone_surgery: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+
 class PatientIdentity(Base):
     __tablename__ = "patient_identities"
 
