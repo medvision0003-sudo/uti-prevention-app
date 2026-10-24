@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 
 const API = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8001'
 const DEFAULT_HYDRATION_GOAL = 2000
+const WATER_GLASS_ML = 250
 const SYMPTOM_OPTIONS = [
   ['burning_urination', 'Burning when urinating'],
   ['urgency', 'Urinary urgency'],
@@ -63,6 +64,23 @@ function getLocalDateString() {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+function formatWaterTimestamp(timestamp) {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Asia/Kolkata'
+  }).format(new Date(timestamp))
+}
+
+function WaterGlassIcon() {
+  return (
+    <svg className="water-glass-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path className="water-glass-fill" d="M6.5 11h11l-.7 8H7.2z" />
+      <path className="water-glass-outline" d="M6 3h12l-1.3 17H7.3L6 3Z" />
+    </svg>
+  )
 }
 
 function getAPIErrorMessage(detail, fallback) {
@@ -441,7 +459,11 @@ export default function App() {
       const summary = await fetchTodayWater(token)
       setWaterSummary(summary)
       setWaterAmount('')
-      setWaterMessage(`Saved ${data.amount_ml} ml of water.`)
+      const glasses = data.amount_ml / WATER_GLASS_ML
+      const glassLabel = Number.isInteger(glasses)
+        ? `${glasses} ${glasses === 1 ? 'glass' : 'glasses'} (${data.amount_ml} ml)`
+        : `${data.amount_ml} ml`
+      setWaterMessage(`Saved ${glassLabel} of water.`)
     } catch (error) {
       setWaterMessage(getRequestErrorMessage(error))
     } finally {
@@ -749,16 +771,21 @@ export default function App() {
               <strong>{waterSummary?.total_ml || 0} ml</strong>
               <span>of {hydrationGoal} ml personal goal</span>
             </div>
-            <div className="quick-add" aria-label="Quick add water">
-              {[150, 250, 500].map(amount => (
+            <p className="glass-size-note">Choose how many glasses you drank. 1 glass = {WATER_GLASS_ML} ml.</p>
+            <div className="quick-add glass-quick-add" aria-label="Log water by glass">
+              {[1, 2].map(glassCount => (
                 <button
-                  className="secondary"
-                  key={amount}
+                  className="secondary glass-button"
+                  key={glassCount}
                   type="button"
                   disabled={savingWater}
-                  onClick={() => addWater(amount)}
+                  aria-label={`Log ${glassCount} ${glassCount === 1 ? 'glass' : 'glasses'}, ${glassCount * WATER_GLASS_ML} millilitres`}
+                  onClick={() => addWater(glassCount * WATER_GLASS_ML)}
                 >
-                  +{amount} ml
+                  <span className="glass-icons">
+                    {Array.from({ length: glassCount }, (_, index) => <WaterGlassIcon key={index} />)}
+                  </span>
+                  <span>{glassCount} {glassCount === 1 ? 'glass' : 'glasses'} · {glassCount * WATER_GLASS_ML} ml</span>
                 </button>
               ))}
             </div>
@@ -787,8 +814,13 @@ export default function App() {
                 <ul>
                   {waterSummary.entries.map(entry => (
                     <li key={entry.id}>
-                      <span>{entry.amount_ml} ml</span>
-                      <time dateTime={entry.logged_at}>{new Date(entry.logged_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</time>
+                      <span>
+                        {entry.amount_ml % WATER_GLASS_ML === 0 && <>
+                          {entry.amount_ml / WATER_GLASS_ML} {entry.amount_ml / WATER_GLASS_ML === 1 ? 'glass' : 'glasses'} ·{' '}
+                        </>}
+                        {entry.amount_ml} ml
+                      </span>
+                      <time dateTime={entry.logged_at}>{formatWaterTimestamp(entry.logged_at)}</time>
                     </li>
                   ))}
                 </ul>

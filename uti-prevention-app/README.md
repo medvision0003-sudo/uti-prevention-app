@@ -98,7 +98,9 @@ belongs in Vercel's frontend environment; Vite embeds `VITE_` variables in brows
 2. Note the patient ID shown on the dashboard.
 3. Open **Patient history** and complete the clinic-assisted intake. Age is the first field,
    history questions require a yes/no answer, and the note is optional.
-4. Record water intake and daily symptoms. The bladder log remains available as optional tracking.
+4. Record water intake with the 1-glass (250 ml) or 2-glass (500 ml) buttons, or enter a
+   custom amount; each drink is saved with its timestamp. Record daily symptoms. The
+   bladder log remains available as optional tracking.
 5. Click **Export my Excel workbook** to download patient, intake, and tracking data.
 6. Click **Test protected API connection** to test JWT-protected `/api/auth/me`.
 
